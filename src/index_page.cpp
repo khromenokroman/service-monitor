@@ -1,0 +1,191 @@
+#include "index_page.hpp"
+
+namespace {
+
+constexpr std::string_view PAGE = R"HTML(<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Состояние служб</title>
+<style>
+:root {
+  --bg: #f4f6fa; --panel: #ffffff; --text: #1b2130; --muted: #6b7385; --border: #e2e6ee;
+  --ok: #1f9d55; --ok-bg: #e5f6ec; --warn: #c27c0e; --warn-bg: #fdf1dc;
+  --fail: #d23f3f; --fail-bg: #fbe7e7; --unknown: #7a8194; --unknown-bg: #eceef3;
+  --accent: #3d63dd; --shadow: 0 1px 2px rgba(20,30,50,.06), 0 4px 16px rgba(20,30,50,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f131b; --panel: #171c27; --text: #e6e9f0; --muted: #8b93a7; --border: #262d3b;
+    --ok: #3ccf7a; --ok-bg: #13301f; --warn: #f0b340; --warn-bg: #33270f;
+    --fail: #ff6b6b; --fail-bg: #3a1a1c; --unknown: #9aa1b3; --unknown-bg: #232937;
+    --accent: #7b9bff; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
+h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+.host { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.conn { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.conn.lost .dot { background: var(--fail); }
+.conn.lost { color: var(--fail); }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  box-shadow: var(--shadow); cursor: pointer; text-align: left; color: inherit; font: inherit; }
+.tile.active { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tile .n { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tile .l { color: var(--muted); font-size: 13px; }
+.tile.ok .n { color: var(--ok); } .tile.warn .n { color: var(--warn); } .tile.fail .n { color: var(--fail); }
+.toolbar { display: flex; gap: 12px; margin-bottom: 16px; }
+.toolbar input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font: inherit; }
+.toolbar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--c);
+  border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+.card.ok { --c: var(--ok); --cb: var(--ok-bg); } .card.warn { --c: var(--warn); --cb: var(--warn-bg); }
+.card.fail { --c: var(--fail); --cb: var(--fail-bg); } .card.unknown { --c: var(--unknown); --cb: var(--unknown-bg); }
+.head { display: flex; align-items: flex-start; gap: 12px; }
+.names { flex: 1; min-width: 0; }
+.title { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.unit { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.badge { flex: none; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--c); background: var(--cb); white-space: nowrap; }
+.desc { color: var(--muted); margin-top: 8px; font-size: 13px; }
+.meta { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, .8fr) minmax(0, .9fr); gap: 8px;
+  border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+.meta div { min-width: 0; }
+.meta .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.meta .v { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.err { margin-top: 8px; color: var(--fail); font-size: 13px; overflow-wrap: anywhere; }
+.empty { color: var(--muted); padding: 32px; text-align: center; grid-column: 1 / -1; }
+footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
+@media (max-width: 640px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid { grid-template-columns: 1fr; }
+  .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Состояние служб</h1>
+    <span class="host" id="host"></span>
+    <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">Подключение…</span></span>
+  </header>
+  <div class="summary" id="summary">
+    <button class="tile active" data-filter="all"><div class="n" id="n-all">–</div><div class="l">Всего</div></button>
+    <button class="tile ok" data-filter="ok"><div class="n" id="n-ok">–</div><div class="l">Работают</div></button>
+    <button class="tile warn" data-filter="warn"><div class="n" id="n-warn">–</div><div class="l">В переходе</div></button>
+    <button class="tile fail" data-filter="fail"><div class="n" id="n-fail">–</div><div class="l">Проблемы</div></button>
+  </div>
+  <div class="toolbar"><input id="search" type="search" placeholder="Поиск по названию или unit'у…" autocomplete="off"></div>
+  <div class="grid" id="grid"></div>
+  <footer id="footer"></footer>
+</div>
+<script>
+"use strict";
+const LABELS = { ok: "Работает", warn: "Переход", fail: "Не работает", unknown: "Неизвестно" };
+let data = null, filter = "all", refreshSec = 5, timer = null;
+
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+
+function fmtDuration(sec) {
+  if (sec < 60) return Math.floor(sec) + " с";
+  const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+  if (d) return d + " д " + h + " ч";
+  if (h) return h + " ч " + m + " мин";
+  return m + " мин";
+}
+function fmtBytes(b) {
+  if (!b) return "—";
+  const u = ["Б", "КБ", "МБ", "ГБ", "ТБ"]; let i = 0;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return (i ? b.toFixed(b < 10 ? 1 : 0) : b) + " " + u[i];
+}
+function isProblem(s) { return s.level === "fail" || s.level === "unknown"; }
+
+function metaItem(k, v) { const d = el("div"); d.append(el("div", "k", k), el("div", "v", v)); d.title = v; return d; }
+
+function card(s, nowUs) {
+  const c = el("div", "card " + s.level);
+  const head = el("div", "head"), names = el("div", "names");
+  names.append(el("div", "title", s.title));
+  if (s.title !== s.name) names.append(el("div", "unit", s.name));
+  head.append(names, el("span", "badge", LABELS[s.level] || s.level));
+  c.append(head);
+  if (s.description && s.description !== s.name) c.append(el("div", "desc", s.description));
+  const meta = el("div", "meta");
+  const state = s.active_state ? s.active_state + (s.sub_state ? " / " + s.sub_state : "") : "—";
+  const since = s.level === "ok" && s.active_enter_us ? fmtDuration((nowUs - s.active_enter_us) / 1e6) : "—";
+  meta.append(metaItem("Состояние", state), metaItem("Работает", since),
+              metaItem("PID", s.main_pid ? String(s.main_pid) : "—"), metaItem("Память", fmtBytes(s.memory_bytes)));
+  c.append(meta);
+  if (s.load_state && s.load_state !== "loaded") c.append(el("div", "err", "Unit: " + s.load_state));
+  if (s.n_restarts) c.append(el("div", "err", "Автоматических перезапусков: " + s.n_restarts));
+  if (s.error) c.append(el("div", "err", s.error));
+  return c;
+}
+
+function render() {
+  if (!data) return;
+  const svc = data.services;
+  const cnt = { ok: 0, warn: 0, fail: 0 };
+  for (const s of svc) cnt[s.level === "unknown" ? "fail" : s.level]++;
+  $("n-all").textContent = svc.length; $("n-ok").textContent = cnt.ok;
+  $("n-warn").textContent = cnt.warn; $("n-fail").textContent = cnt.fail;
+  $("host").textContent = data.hostname;
+  document.title = (cnt.fail ? "(" + cnt.fail + ") " : "") + "Состояние служб — " + data.hostname;
+
+  const q = $("search").value.trim().toLowerCase();
+  const shown = svc.filter(s =>
+    (filter === "all" || (filter === "fail" ? isProblem(s) : s.level === filter)) &&
+    (!q || s.title.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)));
+  const grid = $("grid");
+  grid.replaceChildren(...shown.map(s => card(s, data.time_us)));
+  if (!shown.length) grid.append(el("div", "empty", "Нет служб, подходящих под фильтр"));
+}
+
+function setConn(ok, text) { $("conn").classList.toggle("lost", !ok); $("conn-text").textContent = text; }
+
+async function refresh() {
+  try {
+    const r = await fetch("api/status", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    data = await r.json();
+    refreshSec = data.refresh_sec || refreshSec;
+    setConn(true, "Обновлено " + new Date().toLocaleTimeString("ru-RU"));
+    $("footer").textContent = "Автообновление каждые " + refreshSec + " с";
+    render();
+  } catch (e) {
+    setConn(false, "Нет связи с сервером (" + e.message + ")");
+  }
+  clearTimeout(timer);
+  timer = setTimeout(refresh, refreshSec * 1000);
+}
+
+for (const t of document.querySelectorAll(".tile")) {
+  t.addEventListener("click", () => {
+    filter = t.dataset.filter;
+    for (const o of document.querySelectorAll(".tile")) o.classList.toggle("active", o === t);
+    render();
+  });
+}
+$("search").addEventListener("input", render);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+refresh();
+</script>
+</body>
+</html>
+)HTML";
+
+} // namespace
+
+std::string_view index_page() { return PAGE; }

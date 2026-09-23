@@ -12,16 +12,19 @@ option(BUILD_TESTS "Собирать тесты" ON)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(sdbus-c++ REQUIRED)
+find_package(Threads REQUIRED)
 
 configure_file(Version.in Version @ONLY)
 
 add_library(${PROJECT_NAME}-core STATIC
         src/config.cpp
+        src/index_page.cpp
+        src/service_monitor.cpp
         src/systemd_client.cpp
         src/unit_status.cpp
 )
 target_include_directories(${PROJECT_NAME}-core PUBLIC src)
-target_link_libraries(${PROJECT_NAME}-core PUBLIC fmt::fmt nlohmann_json::nlohmann_json SDBusCpp::sdbus-c++)
+target_link_libraries(${PROJECT_NAME}-core PUBLIC fmt::fmt nlohmann_json::nlohmann_json SDBusCpp::sdbus-c++ cpp-httplib Threads::Threads)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
