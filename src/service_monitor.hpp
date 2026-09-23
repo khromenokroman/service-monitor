@@ -7,6 +7,7 @@
 #include <string>
 
 #include "config.hpp"
+#include "system_info.hpp"
 #include "systemd_client.hpp"
 
 /**
@@ -15,6 +16,7 @@
  * Отвечает за:
  * - обработку HTTP-запросов (страница и JSON API);
  * - опрос состояния служб через SystemdClient;
+ * - сбор метрик системы через SystemInfo;
  * - запись изменений состояния служб в syslog.
  */
 class ServiceMonitor {
@@ -56,7 +58,8 @@ class ServiceMonitor {
     void log_level_change(UnitStatus const &s);
 
     httplib::Server m_server;                   // 824
-    Config m_config;                            // 72
+    Config m_config;                            // 120
+    SystemInfo m_system;                        // 120
     std::map<std::string, LEVEL> m_last_levels; // 48
     SystemdClient m_client;                     // 48
     std::mutex m_levels_mutex;                  // 40

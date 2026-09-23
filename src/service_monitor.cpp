@@ -27,7 +27,7 @@ std::uint64_t now_us() {
 
 } // namespace
 
-ServiceMonitor::ServiceMonitor(Config config) : m_config{std::move(config)} {
+ServiceMonitor::ServiceMonitor(Config config) : m_config{std::move(config)}, m_system{m_config.disks} {
     openlog("service-monitor", LOG_PID | LOG_CONS, LOG_USER);
     setlogmask(LOG_UPTO(m_config.log_level));
     syslog(LOG_INFO, "Отслеживается служб: %zu", m_config.services.size());
@@ -69,10 +69,14 @@ nlohmann::json ServiceMonitor::collect_status() {
         log_level_change(st);
         services.push_back(st);
     }
-    return {
-        {"hostname", hostname()},          {"time_us", now_us()}, {"refresh_sec", m_config.refresh_sec}, {"groups", m_config.groups},
-        {"services", std::move(services)},
-    };
+    nlohmann::json result;
+    result["hostname"] = hostname();
+    result["time_us"] = now_us();
+    result["refresh_sec"] = m_config.refresh_sec;
+    result["groups"] = m_config.groups;
+    result["system"] = m_system.collect();
+    result["services"] = std::move(services);
+    return result;
 }
 
 void ServiceMonitor::log_level_change(UnitStatus const &s) {

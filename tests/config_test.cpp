@@ -10,6 +10,7 @@ TEST(ParseConfig, DefaultsAndServices) {
     EXPECT_EQ(cfg.port, 8080);
     EXPECT_EQ(cfg.log_level, 6);
     EXPECT_EQ(cfg.refresh_sec, 5);
+    EXPECT_EQ(cfg.disks, std::vector<std::string>{"/"});
     ASSERT_EQ(cfg.services.size(), 2U);
     EXPECT_EQ(cfg.services[0].name, "ssh.service");
     EXPECT_EQ(cfg.services[0].title, "ssh.service");
@@ -65,6 +66,15 @@ TEST(ParseConfig, OnlyGroups) {
     auto const cfg = parse_config(json::parse(R"({"groups": [{"title": "A", "services": ["a"]}]})"));
     ASSERT_EQ(cfg.services.size(), 1U);
     EXPECT_EQ(cfg.services[0].group, "A");
+}
+
+TEST(ParseConfig, Disks) {
+    auto const cfg = parse_config(json::parse(R"({"disks": ["/", "/var"], "services": ["a"]})"));
+    EXPECT_EQ(cfg.disks, (std::vector<std::string>{"/", "/var"}));
+    EXPECT_THROW((void)parse_config(json::parse(R"({"disks": [], "services": ["a"]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"disks": "/", "services": ["a"]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"disks": ["var"], "services": ["a"]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"disks": [1], "services": ["a"]})")), std::runtime_error);
 }
 
 TEST(ParseConfig, GroupErrors) {

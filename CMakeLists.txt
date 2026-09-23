@@ -20,6 +20,7 @@ add_library(${PROJECT_NAME}-core STATIC
         src/config.cpp
         src/index_page.cpp
         src/service_monitor.cpp
+        src/system_info.cpp
         src/systemd_client.cpp
         src/unit_status.cpp
 )
@@ -38,6 +39,7 @@ if (BUILD_TESTS)
     add_executable(${PROJECT_NAME}-tests
             tests/config_test.cpp
             tests/unit_status_test.cpp
+            tests/system_info_test.cpp
     )
     target_link_libraries(${PROJECT_NAME}-tests PRIVATE ${PROJECT_NAME}-core GTest::gtest_main)
     include(GoogleTest)

@@ -114,6 +114,20 @@ Config parse_config(nlohmann::json const &j) {
         throw std::runtime_error(fmt::format("Неверный refresh_sec: {} (должен быть не меньше 1)", cfg.refresh_sec));
     }
 
+    if (j.contains("disks")) {
+        auto const &disks = j.at("disks");
+        if (!disks.is_array() || disks.empty()) {
+            throw std::runtime_error("Поле \"disks\" должно быть непустым массивом");
+        }
+        cfg.disks.clear();
+        for (std::size_t i = 0; i < disks.size(); ++i) {
+            if (!disks[i].is_string() || !disks[i].get<std::string>().starts_with('/')) {
+                throw std::runtime_error(fmt::format("disks[{}]: ожидается абсолютный путь", i));
+            }
+            cfg.disks.push_back(disks[i].get<std::string>());
+        }
+    }
+
     if (j.contains("groups")) {
         parse_groups(j.at("groups"), cfg);
     }
