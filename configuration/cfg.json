@@ -3,10 +3,23 @@
   "port": 8080,
   "log_level": 6,
   "refresh_sec": 5,
+  "groups": [
+    {
+      "title": "Удалённый доступ",
+      "services": [
+        { "name": "ssh", "title": "SSH-сервер" }
+      ]
+    },
+    {
+      "title": "Системные",
+      "services": [
+        { "name": "cron.service", "title": "Планировщик cron" },
+        { "name": "systemd-journald", "title": "Журнал systemd" },
+        "dbus"
+      ]
+    }
+  ],
   "services": [
-    { "name": "ssh", "title": "SSH-сервер" },
-    { "name": "cron.service", "title": "Планировщик cron" },
-    { "name": "systemd-journald", "title": "Журнал systemd" },
     "NetworkManager"
   ]
 }

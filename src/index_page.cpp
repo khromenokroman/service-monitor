@@ -64,6 +64,22 @@ h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 .meta .v { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .err { margin-top: 8px; color: var(--fail); font-size: 13px; overflow-wrap: anywhere; }
 .empty { color: var(--muted); padding: 32px; text-align: center; grid-column: 1 / -1; }
+.group { margin-bottom: 20px; }
+.group-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; margin-bottom: 12px;
+  background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: 12px;
+  box-shadow: var(--shadow); color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.group-head.ok { --c: var(--ok); } .group-head.warn { --c: var(--warn); }
+.group-head.fail { --c: var(--fail); } .group-head.unknown { --c: var(--unknown); }
+.group-head .chev { flex: none; width: 16px; color: var(--muted); transition: transform .15s; }
+.group.collapsed .chev { transform: rotate(-90deg); }
+.group.collapsed .group-head { margin-bottom: 0; }
+.group.collapsed .grid { display: none; }
+.group-head .gt { flex: 1; min-width: 0; font-weight: 650; font-size: 16px; overflow-wrap: anywhere; }
+.group-head .gs { flex: none; display: flex; gap: 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pill { padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { color: var(--ok); background: var(--ok-bg); } .pill.warn { color: var(--warn); background: var(--warn-bg); }
+.pill.fail { color: var(--fail); background: var(--fail-bg); }
+.pill.total { color: var(--muted); background: var(--unknown-bg); }
 footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
 @media (max-width: 640px) {
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -85,8 +101,8 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
     <button class="tile warn" data-filter="warn"><div class="n" id="n-warn">–</div><div class="l">В переходе</div></button>
     <button class="tile fail" data-filter="fail"><div class="n" id="n-fail">–</div><div class="l">Проблемы</div></button>
   </div>
-  <div class="toolbar"><input id="search" type="search" placeholder="Поиск по названию или unit'у…" autocomplete="off"></div>
-  <div class="grid" id="grid"></div>
+  <div class="toolbar"><input id="search" type="search" placeholder="Поиск по названию, unit'у или группе…" autocomplete="off"></div>
+  <div id="content"></div>
   <footer id="footer"></footer>
 </div>
 <script>
@@ -145,13 +161,68 @@ function render() {
   document.title = (cnt.fail ? "(" + cnt.fail + ") " : "") + "Состояние служб — " + data.hostname;
 
   const q = $("search").value.trim().toLowerCase();
-  const shown = svc.filter(s =>
+  const match = s =>
     (filter === "all" || (filter === "fail" ? isProblem(s) : s.level === filter)) &&
-    (!q || s.title.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)));
-  const grid = $("grid");
-  grid.replaceChildren(...shown.map(s => card(s, data.time_us)));
-  if (!shown.length) grid.append(el("div", "empty", "Нет служб, подходящих под фильтр"));
+    (!q || s.title.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) ||
+     s.group.toLowerCase().includes(q));
+  const content = $("content");
+  const groups = data.groups || [];
+
+  if (!groups.length) {
+    const shown = svc.filter(match);
+    content.replaceChildren(grid(shown));
+    if (!shown.length) content.firstChild.append(el("div", "empty", "Нет служб, подходящих под фильтр"));
+    return;
+  }
+
+  const sections = [];
+  for (const title of [...groups, ""]) {
+    const all = svc.filter(s => s.group === title);
+    const shown = all.filter(match);
+    if (!shown.length) continue;
+    sections.push(section(title, all, shown, !!q || filter !== "all"));
+  }
+  content.replaceChildren(...sections);
+  if (!sections.length) content.append(el("div", "empty", "Нет служб, подходящих под фильтр"));
 }
+
+function grid(list) {
+  const g = el("div", "grid");
+  g.append(...list.map(s => card(s, data.time_us)));
+  return g;
+}
+
+const RANK = { ok: 0, warn: 1, unknown: 2, fail: 3 };
+function worst(list) { return list.reduce((w, s) => (RANK[s.level] > RANK[w] ? s.level : w), "ok"); }
+
+function section(title, all, shown, forceOpen) {
+  const key = title || "\u0000other";
+  const sec = el("section", "group" + (collapsed.has(key) && !forceOpen ? " collapsed" : ""));
+  const head = el("button", "group-head " + worst(all));
+  head.type = "button";
+  head.setAttribute("aria-expanded", String(!sec.classList.contains("collapsed")));
+  const chev = el("span", "chev", "\u25BE");
+  const stats = el("span", "gs");
+  const ok = all.filter(s => s.level === "ok").length;
+  const warn = all.filter(s => s.level === "warn").length;
+  const bad = all.filter(isProblem).length;
+  stats.append(el("span", "pill total", ok + " / " + all.length));
+  if (warn) stats.append(el("span", "pill warn", "в переходе: " + warn));
+  if (bad) stats.append(el("span", "pill fail", "проблем: " + bad));
+  head.append(chev, el("span", "gt", title || "Прочие службы"), stats);
+  head.addEventListener("click", () => {
+    const now = sec.classList.toggle("collapsed");
+    head.setAttribute("aria-expanded", String(!now));
+    if (now) collapsed.add(key); else collapsed.delete(key);
+    saveCollapsed();
+  });
+  sec.append(head, grid(shown));
+  return sec;
+}
+
+const collapsed = new Set();
+try { for (const k of JSON.parse(localStorage.getItem("collapsed-groups") || "[]")) collapsed.add(k); } catch (e) {}
+function saveCollapsed() { try { localStorage.setItem("collapsed-groups", JSON.stringify([...collapsed])); } catch (e) {} }
 
 function setConn(ok, text) { $("conn").classList.toggle("lost", !ok); $("conn-text").textContent = text; }
 
