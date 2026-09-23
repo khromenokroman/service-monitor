@@ -65,7 +65,7 @@ h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 .err { margin-top: 8px; color: var(--fail); font-size: 13px; overflow-wrap: anywhere; }
 .empty { color: var(--muted); padding: 32px; text-align: center; grid-column: 1 / -1; }
 .group { margin-bottom: 20px; }
-.group-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; margin-bottom: 12px;
+.group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; width: 100%; padding: 10px 14px; margin-bottom: 12px;
   background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: 12px;
   box-shadow: var(--shadow); color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .group-head.ok { --c: var(--ok); } .group-head.warn { --c: var(--warn); }
@@ -74,8 +74,8 @@ h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 .group.collapsed .chev { transform: rotate(-90deg); }
 .group.collapsed .group-head { margin-bottom: 0; }
 .group.collapsed .grid { display: none; }
-.group-head .gt { flex: 1; min-width: 0; font-weight: 650; font-size: 16px; overflow-wrap: anywhere; }
-.group-head .gs { flex: none; display: flex; gap: 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.group-head .gt { flex: 1 1 auto; min-width: 120px; font-weight: 650; font-size: 16px; overflow-wrap: anywhere; }
+.group-head .gs { flex: 0 1 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; gap: 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pill { padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .pill.ok { color: var(--ok); background: var(--ok-bg); } .pill.warn { color: var(--warn); background: var(--warn-bg); }
 .pill.fail { color: var(--fail); background: var(--fail-bg); }
@@ -84,7 +84,7 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
 .sysinfo { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
 .sysinfo b { color: var(--text); font-weight: 600; }
 .system { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
-.group.collapsed .system { display: none; }
+.group.collapsed .system, .group.collapsed .gbody { display: none; }
 .group-head.sys { --c: var(--accent); }
 .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
 .metric .mh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -127,6 +127,11 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
     </button>
     <div class="system" id="system"></div>
   </section>
+  <section class="group" id="svc-group">
+    <button class="group-head ok" id="svc-head" type="button" aria-expanded="true">
+      <span class="chev">&#9662;</span><span class="gt">Службы</span><span class="gs" id="svc-pills"></span>
+    </button>
+    <div class="gbody">
   <div class="summary" id="summary">
     <button class="tile active" data-filter="all"><div class="n" id="n-all">–</div><div class="l">Всего</div></button>
     <button class="tile ok" data-filter="ok"><div class="n" id="n-ok">–</div><div class="l">Работают</div></button>
@@ -135,6 +140,8 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
   </div>
   <div class="toolbar"><input id="search" type="search" placeholder="Поиск по названию, unit'у или группе…" autocomplete="off"></div>
   <div id="content"></div>
+    </div>
+  </section>
   <footer id="footer"></footer>
 </div>
 <script>
@@ -293,6 +300,11 @@ function render() {
   for (const s of svc) cnt[s.level === "unknown" ? "fail" : s.level]++;
   $("n-all").textContent = svc.length; $("n-ok").textContent = cnt.ok;
   $("n-warn").textContent = cnt.warn; $("n-fail").textContent = cnt.fail;
+  $("svc-head").className = "group-head " + (cnt.fail ? "fail" : cnt.warn ? "warn" : "ok");
+  const svcPills = [el("span", "pill total", "работают " + cnt.ok + " / " + svc.length)];
+  if (cnt.warn) svcPills.push(el("span", "pill warn", "в переходе: " + cnt.warn));
+  if (cnt.fail) svcPills.push(el("span", "pill fail", "проблем: " + cnt.fail));
+  $("svc-pills").replaceChildren(...svcPills);
   $("host").textContent = data.hostname;
   renderSystem(data.system);
   document.title = (cnt.fail ? "(" + cnt.fail + ") " : "") + "Состояние служб — " + data.hostname;
@@ -357,16 +369,22 @@ function section(title, all, shown, forceOpen) {
   return sec;
 }
 
-function setSystemExpanded(on) {
-  $("sys-group").classList.toggle("collapsed", !on);
-  $("sys-head").setAttribute("aria-expanded", String(on));
+function bindToggle(groupId, headId, key, defaultOpen) {
+  const set = on => {
+    $(groupId).classList.toggle("collapsed", !on);
+    $(headId).setAttribute("aria-expanded", String(on));
+  };
+  let open = defaultOpen;
+  try { const v = localStorage.getItem(key); if (v !== null) open = v === "1"; } catch (e) {}
+  set(open);
+  $(headId).addEventListener("click", () => {
+    const on = $(groupId).classList.contains("collapsed");
+    set(on);
+    try { localStorage.setItem(key, on ? "1" : "0"); } catch (e) {}
+  });
 }
-try { setSystemExpanded(localStorage.getItem("system-expanded") === "1"); } catch (e) {}
-$("sys-head").addEventListener("click", () => {
-  const on = $("sys-group").classList.contains("collapsed");
-  setSystemExpanded(on);
-  try { localStorage.setItem("system-expanded", on ? "1" : "0"); } catch (e) {}
-});
+bindToggle("sys-group", "sys-head", "system-expanded", false);
+bindToggle("svc-group", "svc-head", "services-expanded", true);
 
 const collapsed = new Set();
 try { for (const k of JSON.parse(localStorage.getItem("collapsed-groups") || "[]")) collapsed.add(k); } catch (e) {}
