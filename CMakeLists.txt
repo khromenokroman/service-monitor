@@ -14,7 +14,12 @@ find_package(nlohmann_json REQUIRED)
 find_package(sdbus-c++ REQUIRED)
 find_package(Threads REQUIRED)
 
+include(GNUInstallDirs)
+
+set(SERVICE_MONITOR_CONFIG "/etc/${PROJECT_NAME}/cfg.json")
+
 configure_file(Version.in Version @ONLY)
+configure_file(systemd/${PROJECT_NAME}.service.in ${PROJECT_NAME}.service @ONLY)
 
 add_library(${PROJECT_NAME}-core STATIC
         src/config.cpp
@@ -45,3 +50,13 @@ if (BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(${PROJECT_NAME}-tests)
 endif ()
+
+install(TARGETS ${PROJECT_NAME}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.service
+        DESTINATION lib/systemd/system
+)
+install(FILES configuration/cfg.json
+        DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/${PROJECT_NAME}
+)

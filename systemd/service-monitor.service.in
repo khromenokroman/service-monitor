@@ -1,0 +1,39 @@
+[Unit]
+Description=Service monitor: web page with systemd services state
+Documentation=https://github.com/khromenokroman/service-monitor
+After=network-online.target dbus.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/service-monitor @SERVICE_MONITOR_CONFIG@
+Restart=on-failure
+RestartSec=3
+
+DynamicUser=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ProtectProc=invisible
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
