@@ -24,7 +24,8 @@ add_library(${PROJECT_NAME}-core STATIC
         src/unit_status.cpp
 )
 target_include_directories(${PROJECT_NAME}-core PUBLIC src)
-target_link_libraries(${PROJECT_NAME}-core PUBLIC fmt::fmt nlohmann_json::nlohmann_json SDBusCpp::sdbus-c++ cpp-httplib Threads::Threads)
+target_include_directories(${PROJECT_NAME}-core SYSTEM PUBLIC third_party/httplib)
+target_link_libraries(${PROJECT_NAME}-core PUBLIC fmt::fmt nlohmann_json::nlohmann_json SDBusCpp::sdbus-c++ Threads::Threads)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
