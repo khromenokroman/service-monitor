@@ -81,6 +81,28 @@ h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 .pill.fail { color: var(--fail); background: var(--fail-bg); }
 .pill.total { color: var(--muted); background: var(--unknown-bg); }
 footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
+.sysinfo { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.sysinfo b { color: var(--text); font-weight: 600; }
+.system { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.metric { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.metric .mh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.metric .mt { color: var(--muted); font-size: 13px; }
+.metric .mv { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.metric .ms { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.bar { height: 6px; border-radius: 3px; background: var(--unknown-bg); overflow: hidden; margin-top: 8px; }
+.bar > i { display: block; height: 100%; border-radius: 3px; background: var(--ok); }
+.bar.warn > i { background: var(--warn); } .bar.fail > i { background: var(--fail); }
+.row { margin-top: 10px; }
+.row:first-of-type { margin-top: 6px; }
+.row .rh { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.row .rh span:first-child { min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.row .rh span:last-child { color: var(--muted); white-space: nowrap; }
+.row .bar { margin-top: 4px; }
+.cores { display: flex; align-items: flex-end; gap: 2px; height: 40px; margin-top: 10px; }
+.cores > i { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; background: var(--ok); }
+.cores > i.warn { background: var(--warn); } .cores > i.fail { background: var(--fail); }
+.cores-bg { background: var(--unknown-bg); border-radius: 3px; }
+.merr { color: var(--fail); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid { grid-template-columns: 1fr; }
@@ -95,6 +117,8 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
     <span class="host" id="host"></span>
     <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">Подключение…</span></span>
   </header>
+  <div class="sysinfo" id="sysinfo"></div>
+  <div class="system" id="system"></div>
   <div class="summary" id="summary">
     <button class="tile active" data-filter="all"><div class="n" id="n-all">–</div><div class="l">Всего</div></button>
     <button class="tile ok" data-filter="ok"><div class="n" id="n-ok">–</div><div class="l">Работают</div></button>
@@ -124,7 +148,7 @@ function fmtBytes(b) {
   if (!b) return "—";
   const u = ["Б", "КБ", "МБ", "ГБ", "ТБ"]; let i = 0;
   while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
-  return (i ? b.toFixed(b < 10 ? 1 : 0) : b) + " " + u[i];
+  return (i ? String(+b.toFixed(b < 10 ? 1 : 0)) : b) + " " + u[i];
 }
 function isProblem(s) { return s.level === "fail" || s.level === "unknown"; }
 
@@ -150,6 +174,103 @@ function card(s, nowUs) {
   return c;
 }
 
+function pct(used, total) { return total ? Math.min(100, Math.max(0, 100 * used / total)) : 0; }
+function sev(p) { return p >= 90 ? "fail" : p >= 70 ? "warn" : ""; }
+function bar(p) { const b = el("div", "bar " + sev(p)); const i = el("i"); i.style.width = p.toFixed(1) + "%"; b.append(i); return b; }
+function fmtPct(p) { return (p < 10 ? p.toFixed(1) : Math.round(p)) + "%"; }
+
+function metric(title, value, sub) {
+  const m = el("div", "metric"), h = el("div", "mh");
+  h.append(el("span", "mt", title), el("span", "mv", value));
+  m.append(h);
+  if (sub) m.append(el("div", "ms", sub));
+  return m;
+}
+function usageRow(label, used, total, text) {
+  const r = el("div", "row"), h = el("div", "rh"), p = pct(used, total);
+  h.append(el("span", "", label), el("span", "", text || fmtBytes(used) + " / " + fmtBytes(total) + " · " + fmtPct(p)));
+  r.append(h, bar(p));
+  return r;
+}
+
+function renderSystem(sys) {
+  if (!sys) return;
+  const info = $("sysinfo");
+  const item = (k, v) => { const s = el("span"); s.append(k + " ", el("b", "", v)); return s; };
+  const numa = sys.numa || [];
+  info.replaceChildren(item("Ядро Linux", sys.kernel || "—"), item("CPU", sys.cpu_model || "—"),
+                       item("Аптайм", fmtDuration(sys.uptime_sec)));
+
+  const cards = [];
+  const cpu = sys.cpu, la = sys.load;
+  const c = metric("Процессор", fmtPct(cpu.usage),
+                   cpu.cores + " " + plural(cpu.cores, "ядро", "ядра", "ядер") + " · NUMA: " + (numa.length || 1) +
+                   " · LA " + la.map(x => x.toFixed(2)).join(" / "));
+  c.insertBefore(bar(cpu.usage), c.children[1]);
+  const cores = el("div", "cores cores-bg");
+  cpu.per_core.forEach((u, i) => {
+    const b = el("i", sev(u));
+    b.style.height = Math.max(4, u).toFixed(1) + "%";
+    b.title = "CPU " + i + ": " + fmtPct(u);
+    cores.append(b);
+  });
+  c.append(cores);
+  cards.push(c);
+
+  const mem = sys.memory, memUsed = mem.total - mem.available;
+  const m = metric("Память", fmtPct(pct(memUsed, mem.total)), fmtBytes(memUsed) + " из " + fmtBytes(mem.total) +
+                   " · доступно " + fmtBytes(mem.available));
+  m.insertBefore(bar(pct(memUsed, mem.total)), m.children[1]);
+  cards.push(m);
+
+  const sw = sys.swap, swUsed = sw.total - sw.free;
+  const w = metric("Swap", sw.total ? fmtPct(pct(swUsed, sw.total)) : "—",
+                   sw.total ? fmtBytes(swUsed) + " из " + fmtBytes(sw.total) : "не настроен");
+  if (sw.total) w.insertBefore(bar(pct(swUsed, sw.total)), w.children[1]);
+  cards.push(w);
+
+  const hp = sys.hugepages;
+  if (hp && hp.total) {
+    const used = hp.total - hp.free;
+    const h = metric("Hugepages", fmtPct(pct(used, hp.total)),
+                     used + " / " + hp.total + " × " + fmtBytes(hp.size) + " · " + fmtBytes(used * hp.size) + " из " +
+                     fmtBytes(hp.total * hp.size));
+    h.insertBefore(bar(pct(used, hp.total)), h.children[1]);
+    cards.push(h);
+  }
+
+  if (numa.length > 1) {
+    const n = metric("NUMA", numa.length + " " + plural(numa.length, "узел", "узла", "узлов"));
+    for (const node of numa) {
+      const r = usageRow("node" + node.node, node.mem_total - node.mem_free, node.mem_total);
+      r.append(el("div", "ms", "CPU " + node.cpus));
+      n.append(r);
+    }
+    cards.push(n);
+  }
+
+  const d = metric("Диски", "");
+  for (const disk of sys.disks || []) {
+    if (disk.error) {
+      const r = el("div", "row");
+      r.append(el("div", "rh"), el("div", "merr", disk.path + ": " + disk.error));
+      d.append(r);
+    } else {
+      d.append(usageRow(disk.path, disk.used, disk.used + disk.avail));
+    }
+  }
+  cards.push(d);
+
+  $("system").replaceChildren(...cards);
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
 function render() {
   if (!data) return;
   const svc = data.services;
@@ -158,6 +279,7 @@ function render() {
   $("n-all").textContent = svc.length; $("n-ok").textContent = cnt.ok;
   $("n-warn").textContent = cnt.warn; $("n-fail").textContent = cnt.fail;
   $("host").textContent = data.hostname;
+  renderSystem(data.system);
   document.title = (cnt.fail ? "(" + cnt.fail + ") " : "") + "Состояние служб — " + data.hostname;
 
   const q = $("search").value.trim().toLowerCase();

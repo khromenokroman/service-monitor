@@ -3,6 +3,7 @@
   "port": 8080,
   "log_level": 6,
   "refresh_sec": 5,
+  "disks": ["/", "/var"],
   "groups": [
     {
       "title": "Удалённый доступ",
