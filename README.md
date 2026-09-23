@@ -37,7 +37,7 @@
 Debian 13:
 
 ```bash
-apt install -y build-essential cmake dpkg-dev libfmt-dev nlohmann-json3-dev libsdbus-c++2-dev libgtest-dev
+apt install -y build-essential cmake dpkg-dev libfmt-dev nlohmann-json3-dev libsdbus-c++-dev libgtest-dev
 ```
 
 Astra Linux 1.8:
@@ -85,6 +85,23 @@ apt install -y ./service-monitor_<версия>_amd64.deb
 
 При установке служба включается и запускается, при обновлении пакета перезапускается (если администратор её
 не выключил), при удалении останавливается.
+
+## Релизы
+
+Сборка настроена в GitHub Actions (`.github/workflows/release.yml`): на каждый push и pull request в `master`
+проект собирается в контейнере Debian 13, прогоняются тесты и собирается DEB-пакет (он доступен в артефактах
+запуска). Готовые пакеты публикуются на странице
+[Releases](https://github.com/khromenokroman/service-monitor/releases).
+
+Чтобы выпустить релиз, нужно поставить тег `v<версия>`, совпадающий с версией в `CMakeLists.txt`, и отправить его:
+
+```bash
+git tag v0.11.0.0
+git push origin v0.11.0.0
+```
+
+Если тег не совпадает с версией, сборка останавливается. Пакет для Astra Linux в GitHub Actions не собирается
+(нет публичного образа), его нужно собрать на Astra и приложить к релизу вручную.
 
 ## Запуск как служба
 
