@@ -83,7 +83,9 @@ h1 { font-size: 22px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
 .sysinfo { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
 .sysinfo b { color: var(--text); font-weight: 600; }
-.system { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.system { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.group.collapsed .system { display: none; }
+.group-head.sys { --c: var(--accent); }
 .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
 .metric .mh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .metric .mt { color: var(--muted); font-size: 13px; }
@@ -92,6 +94,7 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
 .bar { height: 6px; border-radius: 3px; background: var(--unknown-bg); overflow: hidden; margin-top: 8px; }
 .bar > i { display: block; height: 100%; border-radius: 3px; background: var(--ok); }
 .bar.warn > i { background: var(--warn); } .bar.fail > i { background: var(--fail); }
+.bar.neutral > i { background: var(--accent); }
 .row { margin-top: 10px; }
 .row:first-of-type { margin-top: 6px; }
 .row .rh { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -118,7 +121,12 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
     <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">Подключение…</span></span>
   </header>
   <div class="sysinfo" id="sysinfo"></div>
-  <div class="system" id="system"></div>
+  <section class="group collapsed" id="sys-group">
+    <button class="group-head sys" id="sys-head" type="button" aria-expanded="false">
+      <span class="chev">&#9662;</span><span class="gt">Ресурсы системы</span><span class="gs" id="sys-pills"></span>
+    </button>
+    <div class="system" id="system"></div>
+  </section>
   <div class="summary" id="summary">
     <button class="tile active" data-filter="all"><div class="n" id="n-all">–</div><div class="l">Всего</div></button>
     <button class="tile ok" data-filter="ok"><div class="n" id="n-ok">–</div><div class="l">Работают</div></button>
@@ -176,7 +184,7 @@ function card(s, nowUs) {
 
 function pct(used, total) { return total ? Math.min(100, Math.max(0, 100 * used / total)) : 0; }
 function sev(p) { return p >= 90 ? "fail" : p >= 70 ? "warn" : ""; }
-function bar(p) { const b = el("div", "bar " + sev(p)); const i = el("i"); i.style.width = p.toFixed(1) + "%"; b.append(i); return b; }
+function bar(p, neutral) { const b = el("div", "bar " + (neutral ? "neutral" : sev(p))); const i = el("i"); i.style.width = p.toFixed(1) + "%"; b.append(i); return b; }
 function fmtPct(p) { return (p < 10 ? p.toFixed(1) : Math.round(p)) + "%"; }
 
 function metric(title, value, sub) {
@@ -235,7 +243,7 @@ function renderSystem(sys) {
     const h = metric("Hugepages", fmtPct(pct(used, hp.total)),
                      used + " / " + hp.total + " × " + fmtBytes(hp.size) + " · " + fmtBytes(used * hp.size) + " из " +
                      fmtBytes(hp.total * hp.size));
-    h.insertBefore(bar(pct(used, hp.total)), h.children[1]);
+    h.insertBefore(bar(pct(used, hp.total), true), h.children[1]);
     cards.push(h);
   }
 
@@ -262,6 +270,13 @@ function renderSystem(sys) {
   cards.push(d);
 
   $("system").replaceChildren(...cards);
+
+  const pill = (label, p) => el("span", "pill " + (sev(p) || "total"), label + " " + fmtPct(p));
+  const pills = [pill("CPU", cpu.usage), pill("RAM", pct(memUsed, mem.total))];
+  if (sw.total) pills.push(pill("Swap", pct(swUsed, sw.total)));
+  const diskMax = Math.max(0, ...(sys.disks || []).filter(x => !x.error).map(x => pct(x.used, x.used + x.avail)));
+  if ((sys.disks || []).some(x => !x.error)) pills.push(pill("Диск", diskMax));
+  $("sys-pills").replaceChildren(...pills);
 }
 
 function plural(n, one, few, many) {
@@ -341,6 +356,17 @@ function section(title, all, shown, forceOpen) {
   sec.append(head, grid(shown));
   return sec;
 }
+
+function setSystemExpanded(on) {
+  $("sys-group").classList.toggle("collapsed", !on);
+  $("sys-head").setAttribute("aria-expanded", String(on));
+}
+try { setSystemExpanded(localStorage.getItem("system-expanded") === "1"); } catch (e) {}
+$("sys-head").addEventListener("click", () => {
+  const on = $("sys-group").classList.contains("collapsed");
+  setSystemExpanded(on);
+  try { localStorage.setItem("system-expanded", on ? "1" : "0"); } catch (e) {}
+});
 
 const collapsed = new Set();
 try { for (const k of JSON.parse(localStorage.getItem("collapsed-groups") || "[]")) collapsed.add(k); } catch (e) {}
