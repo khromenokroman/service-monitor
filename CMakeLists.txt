@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25.1)
 project(service-monitor
         VERSION 0.11.0.0
         LANGUAGES CXX
-        HOMEPAGE_URL "")
+        HOMEPAGE_URL "https://github.com/khromenokroman/service-monitor")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -60,3 +60,30 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.service
 install(FILES configuration/cfg.json
         DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/${PROJECT_NAME}
 )
+
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_PACKAGE_VENDOR "khromenokroman")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_CONTACT "khromenokroman <roma55592@yandex.ru>")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Web page with systemd services state and system resources")
+set(CPACK_PACKAGE_DESCRIPTION "HTTP server that shows the state of systemd units (via D-Bus)\nlisted in a JSON config, grouped by the user, together with CPU,\nmemory, swap, hugepages, NUMA and disk usage.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
+
+set(CPACK_GENERATOR "DEB")
+set(CPACK_STRIP_FILES ON)
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_SECTION "admin")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "systemd, dbus, libsdbus-c++2")
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+        "${CMAKE_SOURCE_DIR}/debian/postinst"
+        "${CMAKE_SOURCE_DIR}/debian/prerm"
+        "${CMAKE_SOURCE_DIR}/debian/postrm"
+        "${CMAKE_SOURCE_DIR}/debian/conffiles"
+)
+set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
+set(CPACK_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
+include(CPack)
