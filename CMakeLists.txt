@@ -60,6 +60,9 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.service
 install(FILES configuration/cfg.json
         DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/${PROJECT_NAME}
 )
+install(FILES debian/copyright
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}
+)
 
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VENDOR "khromenokroman")
