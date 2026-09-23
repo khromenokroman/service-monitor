@@ -11,14 +11,17 @@ option(BUILD_TESTS "Собирать тесты" ON)
 
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(sdbus-c++ REQUIRED)
 
 configure_file(Version.in Version @ONLY)
 
 add_library(${PROJECT_NAME}-core STATIC
         src/config.cpp
+        src/systemd_client.cpp
+        src/unit_status.cpp
 )
 target_include_directories(${PROJECT_NAME}-core PUBLIC src)
-target_link_libraries(${PROJECT_NAME}-core PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME}-core PUBLIC fmt::fmt nlohmann_json::nlohmann_json SDBusCpp::sdbus-c++)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
@@ -30,6 +33,7 @@ if (BUILD_TESTS)
     find_package(GTest REQUIRED)
     add_executable(${PROJECT_NAME}-tests
             tests/config_test.cpp
+            tests/unit_status_test.cpp
     )
     target_link_libraries(${PROJECT_NAME}-tests PRIVATE ${PROJECT_NAME}-core GTest::gtest_main)
     include(GoogleTest)
