@@ -39,4 +39,45 @@ TEST(ParseConfig, Errors) {
     EXPECT_THROW((void)parse_config(json::parse(R"({"refresh_sec": 0, "services": ["a"]})")), std::runtime_error);
 }
 
+TEST(ParseConfig, Groups) {
+    auto const cfg = parse_config(json::parse(R"({
+        "groups": [
+            {"title": "Ядро", "services": ["dpdk-core", {"name": "ngcore-ingress", "title": "Ingress"}]},
+            {"title": "Контекст", "services": ["frr@sample"]}
+        ],
+        "services": ["ssh"]
+    })"));
+    ASSERT_EQ(cfg.groups.size(), 2U);
+    EXPECT_EQ(cfg.groups[0], "Ядро");
+    EXPECT_EQ(cfg.groups[1], "Контекст");
+    ASSERT_EQ(cfg.services.size(), 4U);
+    EXPECT_EQ(cfg.services[0].name, "dpdk-core.service");
+    EXPECT_EQ(cfg.services[0].group, "Ядро");
+    EXPECT_EQ(cfg.services[1].title, "Ingress");
+    EXPECT_EQ(cfg.services[1].group, "Ядро");
+    EXPECT_EQ(cfg.services[2].name, "frr@sample.service");
+    EXPECT_EQ(cfg.services[2].group, "Контекст");
+    EXPECT_EQ(cfg.services[3].name, "ssh.service");
+    EXPECT_TRUE(cfg.services[3].group.empty());
+}
+
+TEST(ParseConfig, OnlyGroups) {
+    auto const cfg = parse_config(json::parse(R"({"groups": [{"title": "A", "services": ["a"]}]})"));
+    ASSERT_EQ(cfg.services.size(), 1U);
+    EXPECT_EQ(cfg.services[0].group, "A");
+}
+
+TEST(ParseConfig, GroupErrors) {
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": {}})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": []})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": ["a"]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": [{"services": ["a"]}]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": [{"title": "", "services": ["a"]}]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": [{"title": "A"}]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": [{"title": "A", "services": []}]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": [{"title": "A", "services": [42]}]})")), std::runtime_error);
+    EXPECT_THROW((void)parse_config(json::parse(R"({"groups": [{"title": "A", "services": ["a"]}, {"title": "A", "services": ["b"]}]})")),
+                 std::runtime_error);
+}
+
 TEST(LoadConfig, MissingFile) { EXPECT_THROW((void)load_config("/nonexistent/cfg.json"), std::runtime_error); }

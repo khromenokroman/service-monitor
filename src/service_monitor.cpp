@@ -64,14 +64,13 @@ void ServiceMonitor::stop() { m_server.stop(); }
 nlohmann::json ServiceMonitor::collect_status() {
     auto services = nlohmann::json::array();
     for (auto const &entry : m_config.services) {
-        auto const st = m_client.get_status(entry.name, entry.title);
+        auto st = m_client.get_status(entry.name, entry.title);
+        st.group = entry.group;
         log_level_change(st);
         services.push_back(st);
     }
     return {
-        {"hostname", hostname()},
-        {"time_us", now_us()},
-        {"refresh_sec", m_config.refresh_sec},
+        {"hostname", hostname()},          {"time_us", now_us()}, {"refresh_sec", m_config.refresh_sec}, {"groups", m_config.groups},
         {"services", std::move(services)},
     };
 }

@@ -37,6 +37,7 @@ void to_json(nlohmann::json &j, UnitStatus const &s) {
     j = nlohmann::json{
         {"name", s.name},
         {"title", s.title},
+        {"group", s.group},
         {"description", s.description},
         {"load_state", s.load_state},
         {"active_state", s.active_state},

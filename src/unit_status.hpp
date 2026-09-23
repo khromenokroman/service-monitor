@@ -18,8 +18,9 @@ enum class LEVEL {
  * @brief Состояние unit'а systemd, полученное через D-Bus.
  */
 struct UnitStatus {
-    std::string name;                ///< Имя unit'а.
-    std::string title;               ///< Отображаемое название из конфигурации.
+    std::string name;  ///< Имя unit'а.
+    std::string title; ///< Отображаемое название из конфигурации.
+    std::string group; ///< Название группы из конфигурации; пустая строка, если группы нет.
     std::string description;         ///< Свойство Description.
     std::string load_state;          ///< Свойство LoadState (loaded, not-found, masked, ...).
     std::string active_state;        ///< Свойство ActiveState (active, inactive, failed, ...).

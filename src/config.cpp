@@ -22,33 +22,69 @@ std::string normalize_unit_name(std::string name) {
     return name;
 }
 
-ServiceEntry parse_service(nlohmann::json const &j, std::size_t idx) {
+ServiceEntry parse_service(nlohmann::json const &j, std::string_view where) {
     ServiceEntry entry;
     if (j.is_string()) {
         entry.name = j.get<std::string>();
     } else if (j.is_object()) {
         if (!j.contains("name") || !j.at("name").is_string()) {
-            throw std::runtime_error(fmt::format("services[{}]: поле \"name\" обязательно и должно быть строкой", idx));
+            throw std::runtime_error(fmt::format("{}: поле \"name\" обязательно и должно быть строкой", where));
         }
         entry.name = j.at("name").get<std::string>();
         if (j.contains("title")) {
             if (!j.at("title").is_string()) {
-                throw std::runtime_error(fmt::format("services[{}]: поле \"title\" должно быть строкой", idx));
+                throw std::runtime_error(fmt::format("{}: поле \"title\" должно быть строкой", where));
             }
             entry.title = j.at("title").get<std::string>();
         }
     } else {
-        throw std::runtime_error(fmt::format("services[{}]: ожидается строка или объект", idx));
+        throw std::runtime_error(fmt::format("{}: ожидается строка или объект", where));
     }
 
     if (entry.name.empty()) {
-        throw std::runtime_error(fmt::format("services[{}]: пустое имя службы", idx));
+        throw std::runtime_error(fmt::format("{}: пустое имя службы", where));
     }
     entry.name = normalize_unit_name(std::move(entry.name));
     if (entry.title.empty()) {
         entry.title = entry.name;
     }
     return entry;
+}
+
+void parse_services(nlohmann::json const &j, std::string_view where, std::string const &group, std::vector<ServiceEntry> &out) {
+    if (!j.is_array()) {
+        throw std::runtime_error(fmt::format("{}: должно быть массивом", where));
+    }
+    for (std::size_t i = 0; i < j.size(); ++i) {
+        auto entry = parse_service(j[i], fmt::format("{}[{}]", where, i));
+        entry.group = group;
+        out.push_back(std::move(entry));
+    }
+}
+
+void parse_groups(nlohmann::json const &j, Config &cfg) {
+    if (!j.is_array()) {
+        throw std::runtime_error("Поле \"groups\" должно быть массивом");
+    }
+    for (std::size_t i = 0; i < j.size(); ++i) {
+        auto const &g = j[i];
+        auto const where = fmt::format("groups[{}]", i);
+        if (!g.is_object()) {
+            throw std::runtime_error(fmt::format("{}: ожидается объект", where));
+        }
+        if (!g.contains("title") || !g.at("title").is_string() || g.at("title").get<std::string>().empty()) {
+            throw std::runtime_error(fmt::format("{}: поле \"title\" обязательно и должно быть непустой строкой", where));
+        }
+        auto title = g.at("title").get<std::string>();
+        if (std::ranges::find(cfg.groups, title) != cfg.groups.end()) {
+            throw std::runtime_error(fmt::format("{}: группа \"{}\" уже объявлена", where, title));
+        }
+        if (!g.contains("services") || !g.at("services").is_array() || g.at("services").empty()) {
+            throw std::runtime_error(fmt::format("{}: поле \"services\" обязательно и должно быть непустым массивом", where));
+        }
+        parse_services(g.at("services"), where + ".services", title, cfg.services);
+        cfg.groups.push_back(std::move(title));
+    }
 }
 
 } // namespace
@@ -78,16 +114,14 @@ Config parse_config(nlohmann::json const &j) {
         throw std::runtime_error(fmt::format("Неверный refresh_sec: {} (должен быть не меньше 1)", cfg.refresh_sec));
     }
 
-    if (!j.contains("services") || !j.at("services").is_array()) {
-        throw std::runtime_error("Поле \"services\" обязательно и должно быть массивом");
+    if (j.contains("groups")) {
+        parse_groups(j.at("groups"), cfg);
     }
-    auto const &services = j.at("services");
-    if (services.empty()) {
-        throw std::runtime_error("Список служб \"services\" пуст");
+    if (j.contains("services")) {
+        parse_services(j.at("services"), "services", {}, cfg.services);
     }
-    cfg.services.reserve(services.size());
-    for (std::size_t i = 0; i < services.size(); ++i) {
-        cfg.services.push_back(parse_service(services[i], i));
+    if (cfg.services.empty()) {
+        throw std::runtime_error("Не задано ни одной службы: заполните \"services\" и/или \"groups\"");
     }
     return cfg;
 }
